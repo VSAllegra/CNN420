@@ -47,159 +47,175 @@ parser.add_argument("-max_stride", dest='max_stride', type=int, default=2, help=
 parser.add_argument("-ckp_path", dest='ckp_path', type=str, default="checkpoint", help="path of checkpoint")
 
 args = parser.parse_args()
-	
+
 
 def _load_data(DATA_PATH, batch_size):
-	'''Data loader'''
+    '''Data loader'''
+    
+    print("data_path: ", DATA_PATH)
+    train_trans = transforms.Compose([transforms.RandomRotation(args.rotation),transforms.RandomHorizontalFlip(),\
+                                transforms.ToTensor(), transforms.Normalize((0.5), (0.5))])
 
-	print("data_path: ", DATA_PATH)
-	train_trans = transforms.Compose([transforms.RandomRotation(args.rotation),transforms.RandomHorizontalFlip(),\
-								transforms.ToTensor(), transforms.Normalize((0.5), (0.5))])
-	
-	train_dataset = torchvision.datasets.MNIST(root=DATA_PATH, download=True,train=True, transform=train_trans)
-	train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,num_workers=8)
-	
-	## for testing
-	test_trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5), (0.5))])
-	test_dataset = torchvision.datasets.MNIST(root=DATA_PATH, download=True, train=False, transform=test_trans)
-	test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, num_workers=8)
-	
-	return train_loader, test_loader
+    train_dataset = torchvision.datasets.MNIST(root=DATA_PATH, download=True,train=True, transform=train_trans)
+    train_loader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True,num_workers=8)
+
+    ## for testing
+    test_trans = transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5), (0.5))])
+    test_dataset = torchvision.datasets.MNIST(root=DATA_PATH, download=True, train=False, transform=test_trans)
+    test_loader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False, num_workers=8)
+    
+    return train_loader, test_loader
 
 
 
 def _compute_accuracy(y_pred, y_batch):
-	## please write the code below ##
-	return (y_pred==y_batch).sum().item()
-	
+    ## please write the code below ##
+    return (y_pred==y_batch).sum().item()
+    
 
 
 def adjust_learning_rate(learning_rate, optimizer, epoch, decay):
-	"""Sets the learning rate to the initial LR decayed by 1/10 every args.lr epochs"""
-	lr = learning_rate
-	if (epoch > 5):
-		lr = 0.001
-	if (epoch >= 10):
-		lr = 0.0001
-	if (epoch > 20):
-		lr = 0.00001
-	
-	for param_group in optimizer.param_groups:
-		param_group['lr'] = lr
-	# print("learning_rate: ", lr)
-	
-	
+    """Sets the learning rate to the initial LR decayed by 1/10 every args.lr epochs"""
+    lr = learning_rate
+    if (epoch > 5):
+        lr = 0.001
+    if (epoch >= 10):
+        lr = 0.0001
+    if (epoch > 20):
+        lr = 0.00001
+
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    # print("learning_rate: ", lr)
+
+
 # def _test_model(model):
-# 	## you do not have to write it here ##
-	
-# 	return None
-	
+### you do not have to write it here ##
+
+# return None
+
 
 def main():
 
-	use_cuda = torch.cuda.is_available() ## if have gpu or cpu 
-	device = torch.device("cuda" if use_cuda else "cpu")
-	if use_cuda:
-		torch.cuda.manual_seed(72)
+    use_cuda = torch.cuda.is_available() ## if have gpu or cpu 
+    device = torch.device("cuda:2" if use_cuda else "cpu")
+    if use_cuda:
+        torch.cuda.manual_seed(72)
 
-	## initialize hyper-parameters
-	num_epoches = args.num_epoches
-	decay = args.decay
-	learning_rate = args.learning_rate
+    ## initialize hyper-parameters
+    num_epoches = args.num_epoches
+    decay = args.decay
+    learning_rate = args.learning_rate
 
-	
-	## Load data
-	DATA_PATH = "./data/"
-	train_loader, test_loader=_load_data(DATA_PATH, args.batch_size)
 
-	##-------------------------------------------------------
-	## please write the code about model initialization below
-	##-------------------------------------------------------
-	model = CNNModel(args1,args2,args3) #kernel size, stride
+    ## Load data
+    DATA_PATH = "./data/"
+    train_loader, test_loader=_load_data(DATA_PATH, args.batch_size)
 
-	## to gpu or cpu
-	model.to(device)
-	
-	## --------------------------------------------------
-	## please write the LOSS FUNCTION ##
-	## --------------------------------------------------
-	optimizer = optim.Adam(model.parameters(),lr=learning_rate)  ## optimizer
-	loss_fun =     ## cross entropy loss
-	
-	##--------------------------------------------
-	## load checkpoint below if you need
-	##--------------------------------------------
-	# if args.load_checkpoint == True:
-		## write load checkpoint code below
+    ##-------------------------------------------------------
+    ## please write the code about model initialization below
+    ##-------------------------------------------------------
+    model = CNNModel(args) #kernel size, stride
 
-	
-	##  model training
-	if args.mode == 'train':
-		model = model.train()
-		for epoch in range(num_epoches): #10-50
-			## learning rate
-			adjust_learning_rate(learning_rate, optimizer, epoch, decay)
+    ## to gpu or cpu
+    model.to(device)
+    
+    ## --------------------------------------------------
+    ## please write the LOSS FUNCTION ##
+    ## --------------------------------------------------
+    optimizer = optim.Adam(model.parameters(),lr=learning_rate)  ## optimizer
+    loss_fun = nn.CrossEntropyLoss() 
+    
+    ##--------------------------------------------
+    ## load checkpoint below if you need
+    ##--------------------------------------------
+    # if args.load_checkpoint == True:
+        ## write load checkpoint code below
+        
+    ##  model training
+    if args.mode == 'train':
+        model = model.train()
+        
+        running_loss=0
+        cur_epoch=0
+        acc_list = []
+        
+        for epoch in range(num_epoches): #10-50
+            ## learning rate
+            adjust_learning_rate(learning_rate, optimizer, epoch, decay)
+            cur_epoch+=1;
+            
+            print("Current Epoch : " + str(cur_epoch) + ("/") + str(num_epoches))
 
-			for batch_id, (x_batch,y_labels) in enumerate(train_loader):
-				x_batch,y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
+            for batch_id, (x_batch,y_labels) in enumerate(train_loader):
+                x_batch,y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
+                
+                optimizer.zero_grad()
 
-				## feed input data x into model
-				output_y = model(x_batch)
-				
-				##---------------------------------------------------
-				## write loss function below, refer to tutorial slides
-				##----------------------------------------------------
-				
+                ## feed input data x into model
+                output_y = model(x_batch)
+                ##---------------------------------------------------
+                ## write loss function below, refer to tutorial slides
+                ##----------------------------------------------------
+                loss = loss_fun(output_y,y_labels)
 
-				##----------------------------------------
-				## write back propagation below
-				##----------------------------------------
-				
 
-				##------------------------------------------------------
-				## get the predict result and then compute accuracy below
-				## please refer to defined _compute_accuracy() above
-				##------------------------------------------------------
-				_, y_pred = torch.max(output_y.data, 1)
-				
-				
-				##----------------------------------------------------------
-				## loss.item() or use tensorboard to monitor the loss blow
-				## if use loss.item(), you may use log txt files to save loss
-				##----------------------------------------------------------
-				
+                ##----------------------------------------
+                ## write back propagation below
+                ##----------------------------------------
+                loss.backward()
+                optimizer.step()
 
-			## -------------------------------------------------------------------
-			## save checkpoint below (optional), every "epoch" save one checkpoint
-			## -------------------------------------------------------------------
-			
-			
-				
+                ##------------------------------------------------------
+                ## get the predict result and then compute accuracy below
+                ## please refer to defined _compute_accuracy() above
+                ##------------------------------------------------------
+                total = y_labels.size(0)
+                _, y_pred = torch.max(output_y.data, 1)
+                correct = _compute_accuracy(y_pred, y_labels)
+                acc_list.append(correct / total)
+    
 
-	##------------------------------------
-	##    model testing code below
-	##------------------------------------
-	model.eval()
-	with torch.no_grad():
-		for batch_id, (x_batch,y_labels) in enumerate(test_loader):
-			x_batch, y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
-			##------------------------------------
-			## write the predict result below
-			##------------------------------------
-			
+                ##----------------------------------------------------------
+                ## loss.item() or use tensorboard to monitor the loss blow
+                ## if use loss.item(), you may use log txt files to save loss
+                ##----------------------------------------------------------
+                running_loss += loss.item()
+            ## -------------------------------------------------------------------
+            ## save checkpoint below (optional), every "epoch" save one checkpoint
+            ## -------------------------------------------------------------------
+        
+        train_avg_loss=running_loss/(batch_id+1)
+        print('Training set: Average loss: {:.6f}'.format(train_avg_loss))
 
-			##--------------------------------------------------
-			## write code for computing the accuracy below
-			## please refer to defined _compute_accuracy() above
-			##---------------------------------------------------
-			
-	
-		
+
+    ##------------------------------------
+    ##    model testing code below
+    ##------------------------------------
+    model.eval()
+    with torch.no_grad():
+        for batch_id, (x_batch,y_labels) in enumerate(test_loader):
+            x_batch, y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
+            ##------------------------------------
+            ## write the predict result below
+            ##------------------------------------'
+            output_y = model(x_batch)
+            _, y_pred = torch.max(output_y.data, 1)
+            total += y_labels.size(0)
+         
+
+            
+            ##--------------------------------------------------
+            ## write code for computing the accuracy below
+            ## please refer to defined _compute_accuracy() above
+            ##---------------------------------------------------
+            correct += _compute_accuracy(y_pred, y_labels)
+            print('Test Accuracy of the model on the test images: {} %'.format(100 * correct / total))
 
 if __name__ == '__main__':
-	time_start = time.time()
-	main()
-	time_end = time.time()
-	print("running time: ", (time_end - time_start)/60.0, "mins")
-	
+    time_start = time.time()
+    main()
+    time_end = time.time()
+    print("running time: ", (time_end - time_start)/60.0, "mins")
+
 
