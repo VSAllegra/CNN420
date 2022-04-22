@@ -15,7 +15,7 @@ import torch.optim as optim
 # from util import _create_batch
 import json
 import torchvision
-# from torch.utils.tensorboard import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 import torchvision.transforms as transforms
 from torch.utils.data import DataLoader
 from model import CNNModel
@@ -133,19 +133,20 @@ def main():
         ## write load checkpoint code below
         
     ##  model training
+    writer = SummaryWriter()
     if args.mode == 'train':
         model = model.train()
         
-        running_loss=0
-        cur_epoch=0
-        acc_list = []
-        
+        running_loss = 0
+            
         for epoch in range(num_epoches): #10-50
             ## learning rate
             adjust_learning_rate(learning_rate, optimizer, epoch, decay)
-            cur_epoch+=1;
             
-            print("Current Epoch : " + str(cur_epoch) + ("/") + str(num_epoches))
+            print("Current Epoch : " + str(epoch+1) + ("/") + str(num_epoches))
+        
+            epoch_loss = 0
+            epoch_acc = 0
 
             for batch_id, (x_batch,y_labels) in enumerate(train_loader):
                 x_batch,y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
@@ -173,26 +174,35 @@ def main():
                 total = y_labels.size(0)
                 _, y_pred = torch.max(output_y.data, 1)
                 correct = _compute_accuracy(y_pred, y_labels)
-                acc_list.append(correct / total)
+                batch_acc = correct/total
+                epoch_acc += batch_acc
     
-
                 ##----------------------------------------------------------
                 ## loss.item() or use tensorboard to monitor the loss blow
                 ## if use loss.item(), you may use log txt files to save loss
                 ##----------------------------------------------------------
                 running_loss += loss.item()
+                epoch_loss += loss.item()
             ## -------------------------------------------------------------------
             ## save checkpoint below (optional), every "epoch" save one checkpoint
             ## -------------------------------------------------------------------
-        
-        train_avg_loss=running_loss/(batch_id+1)
-        print('Training set: Average loss: {:.6f}'.format(train_avg_loss))
+            epoch_loss /= batch_id+1
+            epoch_acc = epoch_acc/(batch_id+1)
+            print('Loss of Epoch: {:.6f}'.format(epoch_loss))
+            print('Accuracy of Epoch: {:.6f}'.format(epoch_acc))
+            writer.add_scalar('Accuracy/train', epoch_acc, epoch)
+            writer.add_scalar('Loss/train', epoch_loss, epoch)
+        train_avg_loss= (running_loss/(batch_id+1))/args.num_epoches
+        print('Average loss: {:.6f}'.format(train_avg_loss))
+        writer.close()
 
 
     ##------------------------------------
     ##    model testing code below
     ##------------------------------------
     model.eval()
+    avg_acc = 0
+    acc_of_batch = 0
     with torch.no_grad():
         for batch_id, (x_batch,y_labels) in enumerate(test_loader):
             x_batch, y_labels = Variable(x_batch).to(device), Variable(y_labels).to(device)
@@ -202,15 +212,17 @@ def main():
             output_y = model(x_batch)
             _, y_pred = torch.max(output_y.data, 1)
             total += y_labels.size(0)
-         
-
             
             ##--------------------------------------------------
             ## write code for computing the accuracy below
             ## please refer to defined _compute_accuracy() above
             ##---------------------------------------------------
             correct += _compute_accuracy(y_pred, y_labels)
-            print('Test Accuracy of the model on the test images: {} %'.format(100 * correct / total))
+            acc_of_batch = 100 * (correct / total)
+            avg_acc += acc_of_batch
+            print('Test Accuracy of Current Batch: {:.6f} %'.format(acc_of_batch))
+        print('Average Test Accuracy of all Batches: {:.6f} %'.format(avg_acc/(batch_id+1)))
+        
 
 if __name__ == '__main__':
     time_start = time.time()
